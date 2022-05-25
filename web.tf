@@ -2,29 +2,6 @@ provider "aws" {
   region = var.region
 }
 
-provider "consul" {
-  address    = "${data.terraform_remote_state.consul.consul_server_address.0}:8500"
-  datacenter = "consul"
-}
-
-terraform {
-  backend "s3" {
-    region = "us-east-1"
-    bucket = "examplecom-remote-state-web"
-    key    = "terraform.tfstate"
-  }
-}
-
-data "terraform_remote_state" "consul" {
-  backend = "s3"
-
-  config = {
-    region = var.region
-    bucket = "examplecom-remote-state-consul"
-    key    = "terraform.tfstate"
-  }
-}
-
 module "vpc_basic" {
   source        = "github.com/turnbullpress/tf_vpc_basic.git?ref=v0.0.1"
   name          = "web"
@@ -32,23 +9,21 @@ module "vpc_basic" {
   public_subnet = "10.0.1.0/24"
 }
 
-resource "consul_key_prefix" "web" {
-  token = var.token
+data "template_file" "index" {
+  count    = length(var.instance_ips)
+  template = file("files/index.html.tpl")
 
-  path_prefix = "web/config/"
-
-  subkeys = {
-    "public_dns" = aws_elb.web.dns_name
+  vars = {
+    hostname = "web-${format("%03d", count.index + 1)}"
   }
 }
 
 resource "aws_instance" "web" {
-  ami                         = lookup(var.ami, var.region)
+  ami                         = var.ami[var.region]
   instance_type               = var.instance_type
   key_name                    = var.key_name
   subnet_id                   = module.vpc_basic.public_subnet_id
   private_ip                  = var.instance_ips[count.index]
-  user_data                   = file("files/web_bootstrap.sh")
   associate_public_ip_address = true
 
   vpc_security_group_ids = [
@@ -56,16 +31,36 @@ resource "aws_instance" "web" {
   ]
 
   tags = {
-    Name  = "web-${format("%03d", count.index + 1)}"
-    Owner = var.owner_tag[count.index]
+    Name = "web-${format("%03d", count.index + 1)}"
   }
 
   count = length(var.instance_ips)
+
+  connection {
+    host        = coalesce(self.public_ip, self.private_ip)
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file(var.key_path)
+  }
+
+  provisioner "file" {
+    content     = element(data.template_file.index[*].rendered, count.index)
+    destination = "/tmp/index.html"
+  }
+
+  provisioner "remote-exec" {
+    script = "files/bootstrap_puppet.sh"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo mv /tmp/index.html /usr/share/nginx/html/index.html",
+    ]
+  }
 }
 
 resource "aws_elb" "web" {
   name = "web-elb"
-
   subnets         = [module.vpc_basic.public_subnet_id]
   security_groups = [aws_security_group.web_inbound_sg.id]
 
@@ -76,8 +71,7 @@ resource "aws_elb" "web" {
     lb_protocol       = "http"
   }
 
-  # The instances are registered automatically
-  instances = [aws_instance.web.*.id]
+  instances = aws_instance.web[*].id
 }
 
 resource "aws_security_group" "web_inbound_sg" {
@@ -121,9 +115,9 @@ resource "aws_security_group" "web_host_sg" {
 
   # HTTP access from the VPC
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
+    from_port = 80
+    to_port   = 80
+    protocol  = "tcp"
     cidr_blocks = [module.vpc_basic.cidr]
   }
 
@@ -141,3 +135,4 @@ resource "aws_security_group" "web_host_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
+

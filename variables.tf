@@ -1,30 +1,5 @@
-variable "owner_tag" {
-  default = ["team1", "team2"]
-}
-
 variable "region" {
-  description = "The AWS region"
-}
-
-variable "ami" {
-  type        = "map"
-  description = "The AMI to use"
-  default     = {}
-}
-
-variable "instance_type" {
-  description = "The type of AWS instance to launch"
-  default     = "t2.micro"
-}
-
-variable "key_name" {
-  description = "The AWS key pair name"
-  default     = "james"
-}
-
-variable "instance_ips" {
-  description = "The IPs to use for our instances"
-  default     = ["10.0.1.20", "10.0.1.21"]
+  description = "The AWS region."
 }
 
 variable "prefix" {
@@ -33,10 +8,18 @@ variable "prefix" {
 }
 
 variable "environment" {
-  description = "The name of the environment."
-  default     = "web"
+  description = "The environment name."
+  default     = "base"
 }
 
-variable "token" {
-  description = "The Consul server token"
+variable "ami" {
+  type        = map(string)
+  description = "The AMIs to launch."
+  default     = {}
 }
+
+variable "instance_type" {
+  description = "The type of instance to launch."
+  default     = "t1.micro"
+}
+

@@ -3,9 +3,10 @@ output "elb_address" {
 }
 
 output "addresses" {
-  value = aws_instance.web.*.public_ip
+  value = aws_instance.web[*].public_ip
 }
 
 output "public_subnet_id" {
   value = module.vpc_basic.public_subnet_id
 }
+

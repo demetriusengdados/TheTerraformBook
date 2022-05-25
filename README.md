@@ -1,5 +1,4 @@
-# The Terraform Book code repository
+You can find the full code for Chapter 6 in:
 
-The source code to accompany [The Terraform Book](http://terraformbook.com).
+https://github.com/turnbullpress/tf_dc
 
-Each directory contains one or more chapter's code.
